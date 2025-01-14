@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import math
 from pathlib import Path
+import datetime as dt
 
 # Set the title and favicon that appear in the Browser's tab bar.
 st.set_page_config(
@@ -11,53 +12,6 @@ st.set_page_config(
 
 # -----------------------------------------------------------------------------
 # Declare some useful functions.
-
-@st.cache_data
-def get_gdp_data():
-    """Grab GDP data from a CSV file.
-
-    This uses caching to avoid having to read the file every time. If we were
-    reading from an HTTP endpoint instead of a file, it's a good idea to set
-    a maximum age to the cache with the TTL argument: @st.cache_data(ttl='1d')
-    """
-
-    # Instead of a CSV on disk, you could read from an HTTP endpoint here too.
-    DATA_FILENAME = Path(__file__).parent/'data/gdp_data.csv'
-    raw_gdp_df = pd.read_csv(DATA_FILENAME)
-
-    MIN_YEAR = 1960
-    MAX_YEAR = 2022
-
-    # The data above has columns like:
-    # - Country Name
-    # - Country Code
-    # - [Stuff I don't care about]
-    # - GDP for 1960
-    # - GDP for 1961
-    # - GDP for 1962
-    # - ...
-    # - GDP for 2022
-    #
-    # ...but I want this instead:
-    # - Country Name
-    # - Country Code
-    # - Year
-    # - GDP
-    #
-    # So let's pivot all those year-columns into two: Year and GDP
-    gdp_df = raw_gdp_df.melt(
-        ['Country Code'],
-        [str(x) for x in range(MIN_YEAR, MAX_YEAR + 1)],
-        'Year',
-        'GDP',
-    )
-
-    # Convert years from string to integers
-    gdp_df['Year'] = pd.to_numeric(gdp_df['Year'])
-
-    return gdp_df
-
-gdp_df = get_gdp_data()
 
 @st.cache_data
 def get_ra_data():
@@ -95,6 +49,7 @@ def get_ra_data():
 
     # Convert date from string to datetime
     ra_df['Date'] = pd.to_datetime(ra_df['Date'])
+    ra_df['Year'] = pd.to_numeric(ra_df['Date'].dt.year)
 
     return ra_df
 
@@ -114,11 +69,11 @@ Browse data
 ''
 ''
 
-min_value = ra_df['Date'].min()
-max_value = ra_df['Date'].max()
+min_value = ra_df['Year'].min()
+max_value = ra_df['Year'].max()
 
 from_date, to_date = st.slider(
-    'Which dates are you interested in?',
+    'Which years are you interested in?',
     min_value=min_value,
     max_value=max_value,
     value=[min_value, max_value])
@@ -141,8 +96,8 @@ selected_counties = st.multiselect(
 # Filter the data
 filtered_ra_df = ra_df[
     (ra_df[county_col].isin(selected_counties))
-    & (ra_df['Date'] <= to_date)
-    & (from_date <= ra_df['Date'])
+    & (ra_df['Year'] <= to_date)
+    & (from_date <= ra_df['Year'])
 ]
 
 st.header('RA over time', divider='gray')
@@ -151,17 +106,17 @@ st.header('RA over time', divider='gray')
 
 st.line_chart(
     filtered_ra_df,
-    x='Date',
-    y='RA',
-    color='County',
+    x='Year',
+    y='Amount',
+    color=county_col,
 )
 
 ''
 ''
 
 
-first_year = ra_df[ra_df['Date'] == from_date]
-last_year = ra_df[ra_df['Date'] == to_date]
+first_year = ra_df[ra_df['Year'] == from_date]
+last_year = ra_df[ra_df['Year'] == to_date]
 
 st.header(f'RA in {to_date}', divider='gray')
 
@@ -185,7 +140,7 @@ for i, county in enumerate(selected_counties):
 
         st.metric(
             label=f'{county} RA',
-            value=f'{last_ra:,.0f}B',
+            value=f'{last_ra:,.0f}',
             delta=growth,
             delta_color=delta_color
         )
